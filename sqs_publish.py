@@ -14,7 +14,14 @@ sqs = boto3.client('sqs')
 with open(args.file, 'r') as read_file:
     cnt = 0
     for line in read_file:
-      response = sqs.send_message(QueueUrl=args.queue, MessageBody=line)
+      try:
+        response = sqs.send_message(QueueUrl=args.queue, MessageBody=line)
+      except botocore.exceptions.ClientError as error:
+        if error.response['Error']['Code'] == 'InvalidParameterValue':
+          logger.warn(f'Record too long: {line}')
+        else:
+          raise error
+
       cnt += 1
       if cnt%1000==0:
         print(f'Published {cnt} messages')

@@ -142,15 +142,16 @@ try:
             for fut, msg in futures.items():
               if not fut.done():
                 duration = nowTime-msg[TUPLE_STARTTIME]
-                if duration > LONG_RECORD:
+                if duration > LONG_RECORD*(msg[TUPLE_EXTENDED]+1):
                   numStuck += 1
                   record = orjson.loads(msg[TUPLE_MSG]['Body'])
                   times_extended=msg[TUPLE_EXTENDED]+1
-                  new_time = times_extended*LONG_RECORD*2
-                  # note that if the queue visibility timeout is less than this then change_visibility will error
-                  sqs.change_visibility(QueueUrl=queue_url, ReceiptHandle=msg[TUPLE_MSG]['ReceiptHandle'], VisibilityTimeout=new_time)
-                  futures[fut][TUPLE_STARTTIME]=(nowTime,times_extended)
-                  print(f'Extended visibility ({duration/60:.3g} min, extended {times_extended}: {record["DATA_SOURCE"]} : {record["RECORD_ID"]}')
+		  # push out the visibility another 2 LONG_RECORD times intervals
+                  new_time = (times_extended+2)*LONG_RECORD
+                  # note that if the queue visibility timeout is less than this then change_message_visibility will error
+                  sqs.change_message_visibility(QueueUrl=queue_url, ReceiptHandle=msg[TUPLE_MSG]['ReceiptHandle'], VisibilityTimeout=new_time)
+                  futures[fut]=(msg[TUPLE_MSG],msg[TUPLE_STARTTIME],times_extended)
+                  print(f'Extended visibility ({duration/60:.3g} min, extended {times_extended} times): {record["DATA_SOURCE"]} : {record["RECORD_ID"]}')
               if numStuck >= executor._max_workers:
                 print(f'All {executor._max_workers} threads are stuck on long running records')
 
