@@ -1,15 +1,6 @@
 #! /usr/bin/env python3
 
 import argparse
-import orjson
-import logging
-import traceback
-
-import importlib
-import sys
-import os
-import time
-import random
 import boto3
 
 parser = argparse.ArgumentParser()
