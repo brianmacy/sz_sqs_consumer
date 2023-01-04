@@ -2,6 +2,7 @@
 
 import argparse
 import boto3
+import botocore
 
 parser = argparse.ArgumentParser()
 parser.add_argument('file')
@@ -17,8 +18,9 @@ with open(args.file, 'r') as read_file:
       try:
         response = sqs.send_message(QueueUrl=args.queue, MessageBody=line)
       except botocore.exceptions.ClientError as error:
+        #print(error)
         if error.response['Error']['Code'] == 'InvalidParameterValue':
-          logger.warn(f'Record too long: {line}')
+          print(f'Record too long: {line}')
         else:
           raise error
 
