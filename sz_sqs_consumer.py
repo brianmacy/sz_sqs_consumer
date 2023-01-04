@@ -88,6 +88,7 @@ try:
     queue_url = os.getenv('SENZING_SQS_QUEUE_URL')
 
   max_workers = os.getenv('SENZING_THREADS_PER_PROCESS')
+  prefetch = int(os.getenv('SENZING_PREFETCH',0))
 
   queue_attrs = sqs.get_queue_attributes(QueueUrl=queue_url, AttributeNames=['All'])
   # for some reason the RedrivePolicy is a string and not part of the dict
@@ -182,15 +183,15 @@ try:
         if pauseSeconds < 0.0:
           time.sleep(1)
           continue
-        if len(futures) >= executor._max_workers:
+        if len(futures) >= executor._max_workers+prefetch:
           time.sleep(1)
           continue
         if pauseSeconds > 0.0:
           time.sleep(pauseSeconds)
 
-        while len(futures) < executor._max_workers:
+        while len(futures) < executor._max_workers+prefetch:
           try:
-            max_msgs = min(10, executor._max_workers-len(futures))
+            max_msgs = min(10, executor._max_workers+prefetch-len(futures))
             response = sqs.receive_message(QueueUrl=queue_url,
                                            VisibilityTimeout=2*LONG_RECORD,
                                            MaxNumberOfMessages=max_msgs,
