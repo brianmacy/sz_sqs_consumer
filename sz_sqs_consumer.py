@@ -16,7 +16,7 @@ import boto3
 
 from senzing import G2Engine, G2Exception, G2EngineFlags
 INTERVAL=10000
-LONG_RECORD=300
+LONG_RECORD=os.getenv('LONG_RECORD',default=300)
 
 TUPLE_MSG = 0
 TUPLE_STARTTIME = 1
@@ -60,11 +60,10 @@ try:
   log_level_parameter = os.getenv("SENZING_LOG_LEVEL", "info").lower()
   log_level = log_level_map.get(log_level_parameter, logging.INFO)
   logging.basicConfig(format=log_format, level=log_level)
-  #logging.getLogger("pika").setLevel(logging.WARNING)
 
 
   parser = argparse.ArgumentParser()
-  parser.add_argument('url')
+  parser.add_argument('-q', '--queue', dest='url', required=False, help='queue url')
   parser.add_argument('-i', '--info', dest='info', action='store_true', default=False, help='produce withinfo messages')
   parser.add_argument('-t', '--debugTrace', dest='debugTrace', action='store_true', default=False, help='output debug trace information')
   args = parser.parse_args()
@@ -85,6 +84,11 @@ try:
 
   sqs = boto3.client('sqs')
   queue_url = args.url
+  if not queue_url:
+    queue_url = os.getenv('SENZING_SQS_QUEUE_URL')
+
+  max_workers = os.getenv('SENZING_THREADS_PER_PROCESS')
+
   queue_attrs = sqs.get_queue_attributes(QueueUrl=queue_url, AttributeNames=['All'])
   # for some reason the RedrivePolicy is a string and not part of the dict
   redrive_policy = orjson.loads(queue_attrs['Attributes']['RedrivePolicy'])
@@ -96,12 +100,12 @@ try:
 
 
   messages = 0
-  max_workers = None
   threads_per_process = os.getenv('SENZING_THREADS_PER_PROCESS', None)
   if threads_per_process:
     max_workers = int(threads_per_process)
 
   with concurrent.futures.ThreadPoolExecutor(max_workers) as executor:
+    print(f'Threads: {executor._max_workers}')
     futures = {}
     try:
       while True:
