@@ -115,10 +115,17 @@ try:
           done, _ = concurrent.futures.wait(futures, timeout=10, return_when=concurrent.futures.FIRST_COMPLETED)
 
           for fut in done:
-            result = fut.result()
-            if result:
-              print(result) # we would handle pushing to withinfo queues here BUT that is likely a second future task/executor
             msg = futures.pop(fut)
+            try:
+              result = fut.result()
+              if result:
+                print(result) # we would handle pushing to withinfo queues here BUT that is likely a second future task/executor
+            except G2Exception as err: # change to G2RetryTimeout when available
+              # in SQS you have to push to deadletter
+              record = orjson.loads(msg[TUPLE_MSG]['Body'])
+              print(f'Sending to deadletter: {record["DATA_SOURCE"]} : {record["RECORD_ID"]}')
+              response = sqs.send_message(QueueUrl=deadletter_url, MessageBody=msg[TUPLE_MSG]['Body'])
+
             sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=msg[TUPLE_MSG]['ReceiptHandle'])
             messages+=1
 
@@ -146,7 +153,7 @@ try:
                   numStuck += 1
                   record = orjson.loads(msg[TUPLE_MSG]['Body'])
                   times_extended=msg[TUPLE_EXTENDED]+1
-		  # push out the visibility another 2 LONG_RECORD times intervals
+                  # push out the visibility another 2 LONG_RECORD times intervals
                   new_time = (times_extended+2)*LONG_RECORD
                   # note that if the queue visibility timeout is less than this then change_message_visibility will error
                   sqs.change_message_visibility(QueueUrl=queue_url, ReceiptHandle=msg[TUPLE_MSG]['ReceiptHandle'], VisibilityTimeout=new_time)
