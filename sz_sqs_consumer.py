@@ -114,19 +114,29 @@ try:
         if futures:
           done, _ = concurrent.futures.wait(futures, timeout=10, return_when=concurrent.futures.FIRST_COMPLETED)
 
+          delete_batch = []
+          delete_cnt = 0
+
           for fut in done:
             msg = futures.pop(fut)
-            try:
-              result = fut.result()
-              if result:
-                print(result) # we would handle pushing to withinfo queues here BUT that is likely a second future task/executor
-            except G2Exception as err: # change to G2RetryTimeout when available
-              # in SQS you have to push to deadletter
-              record = orjson.loads(msg[TUPLE_MSG]['Body'])
-              print(f'Sending to deadletter: {record["DATA_SOURCE"]} : {record["RECORD_ID"]}')
-              response = sqs.send_message(QueueUrl=deadletter_url, MessageBody=msg[TUPLE_MSG]['Body'])
+            #try:
+            result = fut.result()
+            if result:
+              print(result) # we would handle pushing to withinfo queues here BUT that is likely a second future task/executor
+            #except G2Exception as err: # change to G2RetryTimeout when available
+            #  # in SQS you have to push to deadletter
+            #  record = orjson.loads(msg[TUPLE_MSG]['Body'])
+            #  print(f'Sending to deadletter: {record["DATA_SOURCE"]} : {record["RECORD_ID"]}')
+            #  response = sqs.send_message(QueueUrl=deadletter_url, MessageBody=msg[TUPLE_MSG]['Body'])
 
-            sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=msg[TUPLE_MSG]['ReceiptHandle'])
+            #sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=msg[TUPLE_MSG]['ReceiptHandle'])
+            delete_batch.append({'Id': msg[TUPLE_MSG]['MessageId'], 'ReceiptHandle': msg[TUPLE_MSG]['ReceiptHandle']})
+            delete_cnt += 1
+            if delete_cnt == 10: # max for delete batch
+              sqs.delete_message_batch(QueueUrl=queue_url, Entries=delete_batch)
+              delete_batch = []
+              delete_cnt = 0
+
             messages+=1
 
             if messages%INTERVAL == 0: # display rate stats
@@ -136,6 +146,9 @@ try:
                 speed = int(INTERVAL / diff)
               print(f'Processed {messages} adds, {speed} records per second')
               prevTime=nowTime
+
+          if delete_batch:
+            sqs.delete_message_batch(QueueUrl=queue_url, Entries=delete_batch)
 
           if nowTime > logCheckTime+(LONG_RECORD/2): # log long running records
             logCheckTime = nowTime
@@ -177,17 +190,18 @@ try:
 
         while len(futures) < executor._max_workers:
           try:
-            msg = sqs.receive_message(QueueUrl=queue_url,
-                                      MessageAttributeNames=[ 'All' ],
-                                      VisibilityTimeout=2*LONG_RECORD,
-                                      WaitTimeSeconds=0)
-            #print(msg)
-            if not msg or not msg.get('Messages'):
+            max_msgs = min(10, executor._max_workers-len(futures))
+            response = sqs.receive_message(QueueUrl=queue_url,
+                                           VisibilityTimeout=2*LONG_RECORD,
+                                           MaxNumberOfMessages=max_msgs,
+                                           WaitTimeSeconds=1)
+            #print(response)
+            if not response or not response.get('Messages'):
               if len(futures) == 0:
                 time.sleep(.1)
               break
-            this_msg = msg['Messages'][0]
-            futures[executor.submit(process_msg, g2, this_msg['Body'], args.info)] = (this_msg,time.time(),0)
+            for this_msg in response['Messages']:
+              futures[executor.submit(process_msg, g2, this_msg['Body'], args.info)] = (this_msg,time.time(),0)
           except Exception as err:
             print(f'{type(err).__name__}: {err}', file=sys.stderr)
             raise
