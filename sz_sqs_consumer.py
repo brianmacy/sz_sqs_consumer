@@ -24,6 +24,13 @@ TUPLE_EXTENDED = 2
 
 log_format = '%(asctime)s %(message)s'
 
+def queue_arn_to_url(arn):
+  fields = arn.split(':')
+  #arn:aws:sqs:us-east-1:666853904750:BrianSQS_DeadLetter"
+  #https://queue.amazonaws.com/666853904750/BrianSQS_DeadLetter
+  return f'https://queue.amazonaws.com/{fields[4]}/{fields[5]}'
+
+
 def process_msg(engine, msg, info):
   try:
     record = orjson.loads(msg)
@@ -78,6 +85,15 @@ try:
 
   sqs = boto3.client('sqs')
   queue_url = args.url
+  queue_attrs = sqs.get_queue_attributes(QueueUrl=queue_url, AttributeNames=['All'])
+  # for some reason the RedrivePolicy is a string and not part of the dict
+  redrive_policy = orjson.loads(queue_attrs['Attributes']['RedrivePolicy'])
+  arn_deadletter = redrive_policy['deadLetterTargetArn']
+  # boto3 requires the queue URL but only provides the deadletter queue as an ARN
+  # this is a hack to convert
+  deadletter_url = queue_arn_to_url(arn_deadletter)
+  print(f'DeadLetter: {deadletter_url}')
+
 
   messages = 0
   max_workers = None
