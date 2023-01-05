@@ -87,8 +87,11 @@ try:
   if not queue_url:
     queue_url = os.getenv('SENZING_SQS_QUEUE_URL')
 
-  max_workers = os.getenv('SENZING_THREADS_PER_PROCESS')
-  prefetch = int(os.getenv('SENZING_PREFETCH',0))
+  max_workers = int(os.getenv('SENZING_THREADS_PER_PROCESS', 0))
+  prefetch = int(os.getenv('SENZING_PREFETCH',-1))
+
+  if not max_workers: # reset to null for executors
+    max_workers = None
 
   queue_attrs = sqs.get_queue_attributes(QueueUrl=queue_url, AttributeNames=['All'])
   # for some reason the RedrivePolicy is a string and not part of the dict
@@ -101,12 +104,13 @@ try:
 
 
   messages = 0
-  threads_per_process = os.getenv('SENZING_THREADS_PER_PROCESS', None)
-  if threads_per_process:
-    max_workers = int(threads_per_process)
 
   with concurrent.futures.ThreadPoolExecutor(max_workers) as executor:
+    if prefetch < 0:
+      prefetch = executor._max_workers
+
     print(f'Threads: {executor._max_workers}')
+    print(f'Prefetch: {prefetch}')
     futures = {}
     try:
       while True:
