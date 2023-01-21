@@ -3,7 +3,7 @@
 # Overview
 Simple parallel JSON data processor using the Senzing API and is meant to provide developers with a simple starting point for a simple, scalable addRecord processor.
 
-It is a limited function [more or less] drop in replacement for the senzing/stream-loader when used for SQS.
+It is a limited function [more or less] drop in replacement for the senzing/stream-loader when used for SQS.  The latest version requires Senzing 3.5 not in pre-release.
 
 # API demonstrated
 ### Core
@@ -34,7 +34,7 @@ LONG_RECORD: (default: 300 seconds)
 ## Building/Running
 ```
 docker build -t brian/sz_sqs_consumer .
-docker run --user $UID -it -e SENZING_ENGINE_CONFIGURATION_JSON -e SENZING_SQS_QUEUE_URL brian/sz_simple_consumer
+docker run --user $UID -it -e SENZING_ENGINE_CONFIGURATION_JSON -e SENZING_SQS_QUEUE_URL brian/sz_sqs_consumer
 ```
 
 ## Additional items to note
