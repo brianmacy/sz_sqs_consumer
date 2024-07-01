@@ -10,6 +10,8 @@ LABEL Name="brain/sz_sqs_consumer" \
       Maintainer="brianmacy@gmail.com" \
       Version="DEV"
 
+USER root
+
 RUN apt-get update \
  && apt-get -y install curl python3 python3-pip python3-boto3 python3-psycopg2 \
  && python3 -mpip install orjson \
