@@ -14,7 +14,7 @@ import time
 import random
 import boto3
 
-from senzing import G2Engine, G2Exception, G2EngineFlags, G2RetryTimeoutExceeded
+from senzing import G2Engine, G2Exception, G2EngineFlags, G2RetryTimeoutExceeded, G2BadInputException
 
 INTERVAL = 10000
 LONG_RECORD = os.getenv("LONG_RECORD", default=300)
